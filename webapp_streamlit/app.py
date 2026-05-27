@@ -1,8 +1,9 @@
 import streamlit as st
-# from streamlit_folium import st_folium
 from streamlit.components.v1 import html
-import folium
-import geopandas as gpd
+import os
+
+# Set directory to this file's directory
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # --- PAGE CONFIG ---
 st.set_page_config(
@@ -18,22 +19,10 @@ st.markdown("""
 """)
 
 # --- TABS ---
-tab1, tab2, tab3 = st.tabs(["🗺️ The Habitat Map", "🔮 Fruiting Forecast", "🧠 Methodology (Data Science)"])
+tab1, tab2, tab3 = st.tabs(["When to Look", "Where to Look", "Methodology (Data Science)"])
 
-# --- TAB 1: THE MAP ---
+# --- TAB 1: WHEN TO LOOK ---
 with tab1:
-    st.header("Potential Habitat Zones")
-
-    # Load the map HTML file
-    with open("visualizations/vegetation_trail_map.html", "r", encoding="utf-8") as f:
-        map_html = f.read()
-
-    # Display the map using Streamlit's HTML component
-    html(map_html, height=600, width=1000)
-
-
-# --- TAB 2: THE FORECAST (Placeholder) ---
-with tab2:
     st.header("Fruiting Probability (Coming Soon)")
     st.info("This section will host the Temporal Model.")
     
@@ -45,7 +34,18 @@ with tab2:
     3. **Logistic Regression:** Probability Score (0-100%).
     """)
 
-# --- TAB 3: METHODOLOGY (The "Interview" Section) ---
+# --- TAB 2: WHERE TO LOOK ---
+with tab2:
+    st.header("Potential Habitat Zones")
+
+    # Load the map HTML file
+    with open("visualizations/vegetation_trail_map.html", "r", encoding="utf-8") as f:
+        map_html = f.read()
+
+    # Display the map using Streamlit's HTML component
+    html(map_html, height=600, width=1000)
+
+# --- TAB 3: METHODOLOGY ---
 with tab3:
     st.header("How this Model Works")
     st.markdown("""
