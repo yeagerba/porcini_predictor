@@ -1,0 +1,14 @@
+# Security
+Secure/*
+
+# Data files
+Data/**
+!Data/**/*.py
+!Data/**/*.ipynb
+
+# EDA visuals & additional data files
+EDA/**.html
+EDA/**.geojson
+
+# macOS junk
+.DS_Store
