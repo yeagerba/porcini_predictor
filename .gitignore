@@ -7,8 +7,8 @@ Data/**
 !Data/**/*.ipynb
 
 # EDA visuals & additional data files
-EDA/**.html
-EDA/**.geojson
+EDA_and_model_training/**.html
+EDA_and_model_training/**.geojson
 
 # macOS junk
 .DS_Store
