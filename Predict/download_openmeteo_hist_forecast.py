@@ -45,7 +45,7 @@ def get_open_meteo_data(url, params):
 
 # This function determines which OpenMeteo URL(s) to use (historical or forecast),
 # calls get_open_meteo_data() to retrieve, and stitches the result(s) into a single dataframe
-def fetch_open_meteo_history(lat, lon, start_date, end_date):
+def fetch_open_meteo_hist_forecast(lat, lon, start_date, end_date):
     """
     Fetches historical weather data from Open-Meteo (ERA5 Reanalysis).
     Automatically caps the 'end_date' to yesterday to avoid API 400 errors.
@@ -133,7 +133,6 @@ def fetch_open_meteo_history(lat, lon, start_date, end_date):
 # startdate = '2026-06-12'
 # enddate = '2026-06-27'
 
-# # We can safely leave 2026 here now; the script will auto-correct it to today's date
-# history_df = fetch_open_meteo_history(LAT, LON, startdate, enddate)
+# history_df = fetch_open_meteo_hist_forecast(LAT, LON, startdate, enddate)
 
 # print(history_df)
