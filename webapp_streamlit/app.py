@@ -24,7 +24,7 @@ st.title("Point Reyes Porcini Forecast")
 
 # --- TABS ---
 # tab1, tab2, tab3 = st.tabs(["Forecast", "Where to Look", "Methodology (Data Science)"])
-tab1, tab2 = st.tabs(["Forecast", "About Porcini & Where to Find Them"])
+tab1, tab2, tab3 = st.tabs(["Forecast", "About Porcini & Where to Find Them", "Contact"])
 
 # --- TAB 1: FORECAST ---
 with tab1:
@@ -302,6 +302,15 @@ with tab2:
 
         # Display the map using Streamlit's HTML component
         html(map_html, height=600, width=1000)
+
+with tab3:
+    st.header("Contact")
+    st.write("Created by **Ben Yeager**")
+    # st.write("Tools: Python, GeoPandas, Folium, Streamlit")
+    st.write("**Email**: yeager.ben.a@gmail.com")
+    st.write("**LinkedIn**: [Ben Yeager](https://www.linkedin.com/in/ben-yeager/)")
+    st.write("**GitHub**: [Porcini Predictor Project](https://github.com/yeagerba/porcini_predictor)")
+    # st.button("Contact Me") # Link to LinkedIn
 
 # --- TAB 3: METHODOLOGY ---
 # with tab3:
