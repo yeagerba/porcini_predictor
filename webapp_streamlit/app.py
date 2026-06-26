@@ -31,7 +31,9 @@ with tab1:
     # st.header("OVERVIEW")
 
     # Load the predictions
-    predictions_df = pd.read_csv('predictions.csv')
+    gcs_url = "https://storage.googleapis.com/point-reyes-mushroom-data/predictions.csv"
+    predictions_df = pd.read_csv(gcs_url)
+    # predictions_df = pd.read_csv('predictions.csv')
     predictions_df['date'] = pd.to_datetime(predictions_df['date'])
     # # Filter to only show today onwards
     # today = pd.Timestamp(dt.date.today())
