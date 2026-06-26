@@ -50,4 +50,4 @@ jobs:
       # Upload the updated cache, predictions.csv, and visualizations to GCS
       - name: Upload to GCS
         run: |
-          gcloud storage cp predictions.csv gs://${{ secrets.GCS_BUCKET_NAME }}/predictions.csv
+          gcloud storage cp Predict/predictions.csv gs://${{ secrets.GCS_BUCKET_NAME }}/predictions.csv
