@@ -5,6 +5,7 @@ import pandas as pd
 import altair as alt
 import datetime as dt
 import json
+import time
 
 # Set directory to this file's directory
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -31,9 +32,9 @@ with tab1:
     # st.header("OVERVIEW")
 
     # Load the predictions
-    gcs_url = "https://storage.googleapis.com/point-reyes-mushroom-data/predictions.csv"
+    timestamp = int(time.time()) # Add timestamp to the URL to avoid caching
+    gcs_url = "https://storage.googleapis.com/point-reyes-mushroom-data/predictions.csv?t={timestamp}"
     predictions_df = pd.read_csv(gcs_url)
-    # predictions_df = pd.read_csv('predictions.csv')
     predictions_df['date'] = pd.to_datetime(predictions_df['date'])
     # # Filter to only show today onwards
     # today = pd.Timestamp(dt.date.today())
@@ -77,8 +78,6 @@ with tab1:
     # ================================================
     # FORECAST CHART
     # ================================================
-
-    predictions_df = pd.read_csv('predictions.csv')
 
     # Create two columns to prevent the chart from overflowing the screen
     col1, col2 = st.columns([4, 1])
