@@ -7,12 +7,10 @@ import datetime as dt
 # from datetime import date, timedelta
 from download_openmeteo_hist_forecast import fetch_open_meteo_hist_forecast
 import pickle
-# import os
+import os
 
-# cwd = os.getcwd()
-# if cwd.endswith('webapp_streamlit'):
-#     os.chdir('..')
-# from Predict.download_openmeteo_hist_forecast import fetch_open_meteo_hist_forecast
+# Set directory to this file's directory
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # CONSTANTS
 # ================================================
