@@ -1,0 +1,10 @@
+pandas
+geopandas
+numpy
+xgboost
+joblib
+requests
+scipy
+folium
+matplotlib
+google-cloud-storage
