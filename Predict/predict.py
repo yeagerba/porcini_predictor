@@ -137,4 +137,4 @@ def make_predictions(start_date=None, end_date=None):
 # ================================================
 prediction_df = make_predictions(dt.date.today(), dt.date.today() + dt.timedelta(days=14))
 # prediction_df = make_predictions(dt.date(2023, 12, 24), dt.date(2023, 12, 24) + dt.timedelta(days=14))
-prediction_df.to_csv('../webapp_streamlit/predictions.csv', index=False)
+prediction_df.to_csv('predictions.csv', index=False)
