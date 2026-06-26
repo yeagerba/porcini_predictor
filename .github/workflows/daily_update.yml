@@ -1,0 +1,53 @@
+name: Daily Mushroom Predictions Update
+
+on:
+  schedule:
+    # Runs at 12:00 UTC every day (4:00 AM PST / 5:00 AM PDT)
+    - cron: '0 12 * * *' 
+  workflow_dispatch: 
+
+jobs:
+  update-predictions:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install google-cloud-storage
+
+      # Authenticate with Google Cloud
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v2'
+
+      # # Download the existing weather cache from GCS (ignore error if it doesn't exist yet)
+      # - name: Download weather cache
+      #   run: |
+      #     gcloud storage cp gs://${{ secrets.GCS_BUCKET_NAME }}/weather_cache.parquet . || echo "No cache found"
+
+      - name: Run Prediction Script
+        # env:
+        #   NOAA_API_TOKEN: ${{ secrets.NOAA_API_TOKEN }}
+        run: |
+          python Predict/predict.py
+
+      # Upload the updated cache, predictions.csv, and visualizations to GCS
+      - name: Upload to GCS
+        run: |
+          gcloud storage cp predictions.csv gs://${{ secrets.GCS_BUCKET_NAME }}/predictions.csv
