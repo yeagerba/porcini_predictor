@@ -152,7 +152,7 @@ with tab1:
         ).encode(
             y=alt.Y(
                 'porcini_index:Q',
-                title='Fruiting Likelihood',
+                title='Porcini Abundance',
                 scale=alt.Scale(domain=[0, 100]),
                 axis=alt.Axis(
                     grid=False,
@@ -160,6 +160,7 @@ with tab1:
                     tickCount=len(yticks),
                     ticks=True,
                     labels=True,
+                    labelOverlap=False,
                     labelExpr=f"""
                         {{
                             0: '{ytick_labels[0]}',
