@@ -2,10 +2,14 @@ import streamlit as st
 from streamlit.components.v1 import html
 import os
 import pandas as pd
+import geopandas as gpd
 import altair as alt
 import datetime as dt
 import json
 import time
+import folium
+from streamlit_folium import st_folium
+
 
 # Set directory to this file's directory
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -25,7 +29,7 @@ st.title("Point Reyes Porcini Forecast")
 
 # --- TABS ---
 # tab1, tab2, tab3 = st.tabs(["Forecast", "Where to Look", "Methodology (Data Science)"])
-tab1, tab2, tab3 = st.tabs(["Forecast", "About Porcini & Where to Find Them", "Contact"])
+tab1, tab3, tab4 = st.tabs(["Current Forecast", "Historical Data & Where to Find Porcini", "Contact"])
 
 # --- TAB 1: FORECAST ---
 with tab1:
@@ -65,7 +69,11 @@ with tab1:
     likelihood_text += ".\n\n"
 
     if current_likelihood == 'LOW' and forecast_likelihood == 'LOW' and predictions_df['date'].iloc[0].month in [4, 5, 6, 7, 8, 9]:
-        infotext = "**No porcini expected in forecast period. Porcini season in Point Reyes runs from Oct-Feb. Check back later!**"
+        infotext = """
+        **No porcini expected in forecast period. Porcini season in Point Reyes runs from Oct-Feb. Check back later!**
+        
+        In the meantime, explore historical data on the next tab to analyze the timing and locations of porcini sightings.
+        """
    
     
     st.info(infotext, icon="😴")
@@ -277,35 +285,157 @@ with tab1:
 
     st.divider()
 
-with tab2:
-    st.header("About Porcini")
-
-    col1, col2 = st.columns([2, 4])
-
-    with col1:
-        st.image("images/big_porcini.jpg", width=200)
-        st.image("images/underside.jpg", width=200)
-        st.image("images/in_ground.jpg", width=200)
-        st.image("images/baby.jpg", width=200)
-    with col2:
-        st.text("""
-        Porcini mushrooms are mycorrhizal, meaning they grow in relationship with trees, sharing nutrients and water. 
-        In Point Reyes, they are most commonly found in association with Bishop Pine *Pinus muricata*, though they are also often found with Douglas Fir *Pseudotsuga menziesii*.
-
-        The map below shows the locations of Bishop Pine (in green) and Douglas Fir (in blue) in Point Reyes. 
-        Dotted lines represent trails - find a trail that runs through Bishop Pine habitat for your best chance to find porcini!
-
-        Note also the red region denoting the area affected by the 2020 Woodward Fire. The forest in this area is still recovering and has large areas of thick undergrowth that can make it difficult to find porcini.
-        """)
-
-        # Load the map HTML file
-        with open("visualizations/vegetation_trail_map.html", "r", encoding="utf-8") as f:
-            map_html = f.read()
-
-        # Display the map using Streamlit's HTML component
-        html(map_html, height=600, width=1000)
 
 with tab3:
+    @st.cache_data(ttl=86400) # Cache for 24 hours
+    def load_historical_data():
+        # A. Load Point Reyes boundary (Keep in EPSG:4326 for PyDeck)
+        cpad = gpd.read_file("../Data/CPAD_Release_2025b/CPAD_2025b_Units/CPAD_2025b_Units.shp")
+        pt_reyes = cpad[cpad['UNIT_NAME'] == 'Point Reyes National Seashore'].copy()
+        pt_reyes_boundary = pt_reyes.dissolve().to_crs(epsg=4326)
+
+        # B. Load and filter Vegetation Data
+        # Removed the ?t=timestamp cache buster so Streamlit can cache this properly
+        gcs_url_veg = "https://storage.googleapis.com/point-reyes-mushroom-data/marin_finescale_veg_dissolved.gpkg"
+        veg_gpkg = gpd.read_file(gcs_url_veg).to_crs(epsg=4326)
+        
+        simplified_veg = veg_gpkg[veg_gpkg['ABBRV'].isin(['PiMu', 'PsMe'])].copy()
+        # Simplify geometry (degrees in 4326: 0.0005 is roughly 50 meters)
+        simplified_veg['geometry'] = simplified_veg['geometry'].simplify(0.00001, preserve_topology=False)
+        # Clip to boundary
+        simplified_veg = gpd.clip(simplified_veg, pt_reyes_boundary)
+
+        # C. Load and filter iNaturalist Data
+        inat_df = pd.read_csv('../Data/inaturalist_data/fungi/observations-675943.csv/observations-675943.csv')
+        inat_df['observed_on'] = pd.to_datetime(inat_df['observed_on'])
+        inat_df = inat_df[(inat_df['observed_on'].dt.year >= 2016) & (inat_df['observed_on'].dt.year <= 2024)].copy()
+        inat_df['month'] = inat_df['observed_on'].dt.month
+        
+        CHOICE_EDIBLES = {'King Bolete': ['Boletus edulis', 'Boletus edulis var. grandedulis', 'Boletus edulis grandedulis']}
+        PROXY_SPECIES = {'King Bolete': ['Suillus', 'Amanita muscaria']}
+        
+        all_targets = set(sp.strip().lower() for lst in {**CHOICE_EDIBLES, **PROXY_SPECIES}.values() for sp in lst)
+        
+        filtered_df = inat_df[inat_df['scientific_name'].str.strip().str.lower().apply(
+            lambda sci: any(target in sci for target in all_targets)
+        )].copy()
+
+        edibles_gdf = gpd.GeoDataFrame(
+            filtered_df,
+            geometry=gpd.points_from_xy(filtered_df.longitude, filtered_df.latitude),
+            crs="EPSG:4326"
+        )
+        # Clip observations to Point Reyes
+        edibles_gdf = gpd.clip(edibles_gdf, pt_reyes_boundary)
+
+        return edibles_gdf, simplified_veg
+
+    
+    edibles_gdf, simplified_veg_gpkg = load_historical_data()
+
+    # Build the base Folium Map
+    # @st.cache_data(ttl=86400) # Cache for 24 hours
+    # def build_base_map():
+    m = folium.Map(location=[38.05, -122.85], zoom_start=11)
+
+    # Add the vegetation layers with the simplified geometries
+    pimu_layer = folium.GeoJson(
+        simplified_veg_gpkg[simplified_veg_gpkg.ABBRV == 'PiMu'], 
+        name='Bishop Pine',
+        style_function=lambda x: {
+            'fillColor': '#228B22',
+            'color': '#228B22',
+            'weight': 1,
+            'fillOpacity': 0.6
+        }
+    ).add_to(m)
+    psme_layer = folium.GeoJson(
+        simplified_veg_gpkg[simplified_veg_gpkg.ABBRV == 'PsMe'], 
+        name='Douglas Fir',
+        style_function=lambda x: {
+            'fillColor': '#00008B',
+            'color': '#00008B',
+            'weight': 1,
+            'fillOpacity': 0.6
+        }
+    ).add_to(m)
+
+    # return m
+
+    # Create interactive historical data map and chart
+    # ==================================================
+    # m = build_base_map()
+
+    st.header("Where and When to Find Porcini")
+
+    col1, col2 = st.columns([1, 5])
+    with col1:
+        st.image("images/baby.jpg", width='stretch')
+    with col2:
+        st.text("""
+            Porcini mushrooms in Point Reyes are most commonly found during the months of October through February, first appearing in the weeks following the first soaking rain of the season.
+        
+            Porcini mushrooms are also mycorrhizal, meaning they grow in relationship with trees, sharing nutrients and water. In Point Reyes, they are most commonly found in association with Bishop Pine *Pinus muricata*, though they are also often found with Douglas Fir *Pseudotsuga menziesii*.
+
+            Explore the historical data compiled below, containing all observations of porcini and associated species (often referred to as indicator species). Bishop Pine forest, where you will find the majority of sightings, is shaded green. Douglas Fir forest is blue.
+
+            Note that sightings are clustered around trails - more mushroom observations are reported where there are more people! Conversely, areas with few reported sightings may simply have lighter foot traffic. Don't assume that you are most likely to see porcini in the most popular areas. Sometimes it is best to get off the beaten track!        
+            """)
+
+    # Create the Widget
+    month_dict = {
+        "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4,
+        "May": 5, "Jun": 6, "Jul": 7, "Aug": 8,
+        "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12
+    }
+    options = list(month_dict.keys())
+    selection = st.pills("Months", options, selection_mode="multi", default=["Oct", "Nov", "Dec"])
+
+    # Convert selection to integers
+    selection_int = [month_dict[month] for month in selection]
+
+    # Filter the mushroom data
+    filtered_edibles_gdf = edibles_gdf[edibles_gdf['month'].isin(selection_int)]
+    
+    # Add points for each mushroom sighting
+    marker_color = '#8B4513'
+    fill_bool = True
+    fill_op = 1.0
+    for idx, row in filtered_edibles_gdf.iterrows():
+        folium.CircleMarker(
+            location=[row['latitude'], row['longitude']],
+            radius=5,
+            color=marker_color,
+            fill=fill_bool,
+            fill_color=None,
+            weight=2, # Edge thickness
+            fill_opacity=0.0 #fill_op
+        ).add_to(m)
+
+
+    
+
+    # Plot the timeline of sightings
+    timeline_chart = alt.Chart(filtered_edibles_gdf).mark_bar().encode(
+        x=alt.X('monthdate(observed_on):O', title='Month/Day (MM/DD)'),
+        y=alt.Y('count()', title='Count')
+    )
+    st.altair_chart(timeline_chart, use_container_width=True, height=250)
+    # Plot the map
+    st_folium(m, use_container_width=True, height=600)
+
+
+    # col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+    # with col1:  
+    #     st.image("images/big_porcini.jpg", width=200)
+    # with col2:
+    #     st.image("images/underside.jpg", width=200)
+    # with col3:
+    #     st.image("images/in_ground.jpg", width=200)
+    # with col4:
+    #     st.image("images/baby.jpg", width=200)
+
+with tab4:
     st.header("Contact")
     st.write("Created by **Ben Yeager**")
     # st.write("Tools: Python, GeoPandas, Folium, Streamlit")
@@ -313,6 +443,16 @@ with tab3:
     st.write("**LinkedIn**: [Ben Yeager](https://www.linkedin.com/in/ben-yeager/)")
     st.write("**GitHub**: [Porcini Predictor Project](https://github.com/yeagerba/porcini_predictor)")
     # st.button("Contact Me") # Link to LinkedIn
+
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+    with col1:  
+        st.image("images/big_porcini.jpg", width=200)
+    with col2:
+        st.image("images/underside.jpg", width=200)
+    with col3:
+        st.image("images/in_ground.jpg", width=200)
+    with col4:
+        st.image("images/baby.jpg", width=200)
 
 # --- TAB 3: METHODOLOGY ---
 # with tab3:
