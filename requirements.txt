@@ -9,3 +9,6 @@ folium
 matplotlib
 scikit-learn
 google-cloud-storage
+streamlit
+streamlit-folium
+altair
