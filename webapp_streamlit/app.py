@@ -290,7 +290,7 @@ with tab3:
     @st.cache_data(ttl=86400) # Cache for 24 hours
     def load_historical_data():
         # A. Load Point Reyes boundary (Keep in EPSG:4326 for PyDeck)
-        cpad = gpd.read_file("../Data/CPAD_Release_2025b/CPAD_2025b_Units/CPAD_2025b_Units.shp")
+        cpad = gpd.read_file("https://storage.googleapis.com/point-reyes-mushroom-data/CPAD_Release_2025b/CPAD_2025b_Units/CPAD_2025b_Units.shp")
         pt_reyes = cpad[cpad['UNIT_NAME'] == 'Point Reyes National Seashore'].copy()
         pt_reyes_boundary = pt_reyes.dissolve().to_crs(epsg=4326)
 
