@@ -306,7 +306,7 @@ with tab3:
         simplified_veg = gpd.clip(simplified_veg, pt_reyes_boundary)
 
         # C. Load and filter iNaturalist Data
-        inat_df = pd.read_csv('../Data/inaturalist_data/fungi/observations-675943.csv/observations-675943.csv')
+        inat_df = pd.read_csv('https://storage.googleapis.com/point-reyes-mushroom-data/observations-675943.csv')
         inat_df['observed_on'] = pd.to_datetime(inat_df['observed_on'])
         inat_df = inat_df[(inat_df['observed_on'].dt.year >= 2016) & (inat_df['observed_on'].dt.year <= 2024)].copy()
         inat_df['month'] = inat_df['observed_on'].dt.month
