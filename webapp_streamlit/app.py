@@ -360,6 +360,18 @@ with tab3:
         }
     ).add_to(m)
 
+    # Add a legend for vegetation types
+    legend_html = """
+     <div style="position: fixed; 
+                 bottom: 50px; left: 50px; width: 180px; height: 55px; 
+                 background-color: white; z-index:9999; font-size:14px;
+                 color: black; border:2px solid grey; border-radius:8px; padding: 10px;">
+     <i style="background:#66C266;width:15px;height:15px;display:inline-block;margin-right:5px;border-radius:3px;border:1px solid #228B22;"></i>Bishop Pine<br>
+     <i style="background:#8080C0;width:15px;height:15px;display:inline-block;margin-right:5px;border-radius:3px;border:1px solid #00008B;"></i>Douglas Fir
+     </div>
+     """
+    m.get_root().html.add_child(folium.Element(legend_html))
+
     # return m
 
     # Create interactive historical data map and chart
@@ -377,10 +389,18 @@ with tab3:
         
             Porcini mushrooms are also mycorrhizal, meaning they grow in relationship with trees, sharing nutrients and water. In Point Reyes, they are most commonly found in association with Bishop Pine *Pinus muricata*, though they are also often found with Douglas Fir *Pseudotsuga menziesii*.
 
-            Explore the historical data compiled below, containing all observations of porcini and associated species (often referred to as indicator species). Bishop Pine forest, where you will find the majority of sightings, is shaded green. Douglas Fir forest is blue.
+            Explore the historical data compiled below, containing all observations of porcini and associated species (often referred to as indicator species) from 2016 to 2024. 
 
             Note that sightings are clustered around trails - more mushroom observations are reported where there are more people! Conversely, areas with few reported sightings may simply have lighter foot traffic. Don't assume that you are most likely to see porcini in the most popular areas. Sometimes it is best to get off the beaten track!        
             """)
+
+    st.header("Historical Data")
+
+    st.text("""
+    Select months to highlight sightings in the map and chart below. Active months are highlighted in brown, and inactive months are gray.
+
+    Bishop Pine forest, where you will find the majority of sightings, is shaded green. Douglas Fir forest is blue.
+    """)
 
     # Create the Widget
     month_dict = {
@@ -389,36 +409,71 @@ with tab3:
         "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12
     }
     options = list(month_dict.keys())
-    selection = st.pills("Months", options, selection_mode="multi", default=["Oct", "Nov", "Dec"])
-
-    # Convert selection to integers
+    selection = st.pills("Months", options, selection_mode="multi") #, default=["Oct", "Nov", "Dec"])
     selection_int = [month_dict[month] for month in selection]
 
-    # Filter the mushroom data
-    filtered_edibles_gdf = edibles_gdf[edibles_gdf['month'].isin(selection_int)]
-    
-    # Add points for each mushroom sighting
-    marker_color = '#8B4513'
-    fill_bool = True
-    fill_op = 1.0
-    for idx, row in filtered_edibles_gdf.iterrows():
-        folium.CircleMarker(
-            location=[row['latitude'], row['longitude']],
-            radius=5,
-            color=marker_color,
-            fill=fill_bool,
-            fill_color=None,
-            weight=2, # Edge thickness
-            fill_opacity=0.0 #fill_op
-        ).add_to(m)
+    # We'll plot ALL mushroom sighting data at all times
+    marker_colors = {
+        "active": '#8B4513',    # brown points for selected months
+        "inactive": '#B0B0B0'   # grey out for deselected months
+    }
 
+    # Add inactive points first, then active points on top
+    # Inactive sightings
+    for idx, row in edibles_gdf.iterrows():
+        if row['month'] not in selection_int:
+            marker_color = marker_colors["inactive"]
+            folium.CircleMarker(
+                location=[row['latitude'], row['longitude']],
+                radius=5,
+                color=marker_color,
+                fill=True,
+                fill_color=marker_color,
+                weight=2,
+                fill_opacity=0.4
+            ).add_to(m)
+    # Active sightings
+    for idx, row in edibles_gdf.iterrows():
+        if row['month'] in selection_int:
+            marker_color = marker_colors["active"]
+            folium.CircleMarker(
+                location=[row['latitude'], row['longitude']],
+                radius=5,
+                color=marker_color,
+                fill=True,
+                fill_color=marker_color,
+                weight=2,
+                fill_opacity=1.0
+            ).add_to(m)
+ 
 
-    
+    # Group counts by month and color bars by selection (brown for active, grey for inactive)
+    month_lookup = {v: k for k, v in month_dict.items()}
+    monthly_counts = (
+        edibles_gdf
+        .groupby('month')
+        .size()
+        .reset_index(name='count')
+    )
+    monthly_counts['avg_count'] = monthly_counts['count'] / 9  # 9 years
+    monthly_counts['month_str'] = monthly_counts['month'].map(month_lookup)
+    monthly_counts['active_month'] = monthly_counts['month'].isin(selection_int)
+    monthly_counts['bar_color'] = monthly_counts['active_month'].map(
+        lambda x: marker_colors["active"] if x else marker_colors["inactive"]
+    )
 
-    # Plot the timeline of sightings
-    timeline_chart = alt.Chart(filtered_edibles_gdf).mark_bar().encode(
-        x=alt.X('monthdate(observed_on):O', title='Month/Day (MM/DD)'),
-        y=alt.Y('count()', title='Count')
+    timeline_chart = alt.Chart(monthly_counts).mark_bar().encode(
+        x=alt.X('month_str:N', title='Month', sort=list(month_dict.keys())),
+        y=alt.Y('avg_count:Q', title='Avg. Sightings (2016-2024)'),
+        color=alt.Color('active_month:N',
+                        scale=alt.Scale(domain=[True, False],
+                                        range=[marker_colors["active"], marker_colors["inactive"]]),
+                        legend=None),
+        tooltip=[
+            alt.Tooltip('month_str:N', title='Month'),
+            alt.Tooltip('avg_count:Q', title='Avg. Sightings', format=",.2f"),
+            alt.Tooltip('count:Q', title='Total Sightings', format=",.2f")
+        ]
     )
     st.altair_chart(timeline_chart, use_container_width=True, height=250)
     # Plot the map
