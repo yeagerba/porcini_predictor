@@ -129,8 +129,6 @@ def make_predictions(start_date=None, end_date=None):
     # Bring back true values of perfect day features (useful for displaying, e.g. rain along with porcini forecast)
     for feature in perfect_day_features.keys():
         prediction_df[feature + '_true'] = weather_df[feature]
-    # Also include weather code
-    prediction_df['weather_code'] = weather_df['weather_code']
 
     return prediction_df
 
@@ -138,5 +136,6 @@ def make_predictions(start_date=None, end_date=None):
 # SAVE PREDICTIONS
 # ================================================
 prediction_df = make_predictions(dt.date.today(), dt.date.today() + dt.timedelta(days=14))
+print(prediction_df.columns)
 # prediction_df = make_predictions(dt.date(2023, 12, 24), dt.date(2023, 12, 24) + dt.timedelta(days=14))
 prediction_df.to_csv('predictions.csv', index=False)
