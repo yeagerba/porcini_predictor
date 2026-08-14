@@ -37,9 +37,12 @@ with tab1:
 
     # Load the predictions
     timestamp = int(time.time()) # Add timestamp to the URL to avoid caching
-    gcs_url = "https://storage.googleapis.com/point-reyes-mushroom-data/predictions.csv?t={timestamp}"
+    gcs_url = f"https://storage.googleapis.com/point-reyes-mushroom-data/predictions.csv?t={timestamp}"
     predictions_df = pd.read_csv(gcs_url)
     predictions_df['date'] = pd.to_datetime(predictions_df['date'])
+    predictions_df['tmax_f_true'] = predictions_df['tmax_c_true'] * 9.0 / 5.0 + 32
+    predictions_df['tmin_f_true'] = predictions_df['tmin_c_true'] * 9.0 / 5.0 + 32
+    predictions_df['prcp_in_true'] = predictions_df['prcp_mm_true'] / 25.4
     # # Filter to only show today onwards
     # today = pd.Timestamp(dt.date.today())
     # # filtered_df = predictions_df[predictions_df['date'] >= today]
@@ -93,19 +96,28 @@ with tab1:
         # To label dates only on the top (porcini) and bottom (rain) charts,
         # we set the x-axis for those charts, and omit from temp.
 
+        # Pad the x axis: half day (~12 hours) before first and after last date
+        half_day = pd.Timedelta(hours=12)
+        date_min = predictions_df['date'].min() - half_day
+        date_max = predictions_df['date'].max() + half_day
+        date_domain = [date_min, date_max]
+
         # Shared X spec for charts with labels at top
         date_x_axis_top = alt.X(
             'date:T',
+            scale=alt.Scale(domain=date_domain),
             axis=alt.Axis(format='%a %d', title=None, grid=False, labelAngle=-45, tickCount=14, orient='top')
         )
         # Shared X spec for charts with labels at bottom
         date_x_axis_bottom = alt.X(
             'date:T',
+            scale=alt.Scale(domain=date_domain),
             axis=alt.Axis(format='%a %d', title=None, grid=False, labelAngle=-45, tickCount=14, orient='bottom')
         )
         # Shared X spec for charts without labels
         date_x_no_labels = alt.X(
             'date:T',
+            scale=alt.Scale(domain=date_domain),
             axis=alt.Axis(labels=False, ticks=False, title=None, grid=False)
         )
 
@@ -192,66 +204,73 @@ with tab1:
 
         porcini = band_chart + lines_chart + porcini_line + porcini_points
 
-        # Create a DataFrame for grid lines at 0, 5, 10, 15, 20, 25
-        temp_grid_y = [0, 5, 10, 15, 20, 25]
-        temp_grid_df = pd.DataFrame({'y': temp_grid_y})
-        temp_grid_chart = alt.Chart(temp_grid_df).mark_rule(
+
+        # Temperature axis domain in Fahrenheit (0C = 32F, 25C = 77F)
+        temp_f_domain = [30, 80]
+        # Set appropriate y-ticks for Fahrenheit
+        temp_grid_y_f = [30, 40, 50, 60, 70, 80]
+        temp_grid_df_f = pd.DataFrame({'y': temp_grid_y_f})
+
+        temp_grid_chart_f = alt.Chart(temp_grid_df_f).mark_rule(
             strokeWidth=1,
             color='#333',
             opacity=0.45
         ).encode(
-            y='y:Q'
+            y=alt.Y('y:Q', scale=alt.Scale(domain=temp_f_domain))
         ).properties(
             height=150
         )
 
         temp = (
-            (temp_grid_chart
+            (temp_grid_chart_f
             + base_mid.mark_line(
                 color='#FF4B4B', strokeWidth=1.5, interpolate='monotone'
             ).encode(
                 y=alt.Y(
-                    'tmax_c_true:Q',
-                    title='Temp (°C)',
-                    scale=alt.Scale(domain=[0, 25]),
+                    'tmax_f_true:Q',
+                    title='Temp (°F)',
+                    scale=alt.Scale(domain=temp_f_domain),
                     axis=alt.Axis(grid=False)
                 )
             ).properties(height=150)
             + base_mid.mark_point(
                 color='#FF4B4B', filled=True, size=30
             ).encode(
-                y=alt.Y('tmax_c_true:Q', scale=alt.Scale(domain=[0, 25]))
+                y=alt.Y('tmax_f_true:Q', scale=alt.Scale(domain=temp_f_domain))
             ).properties(height=150)
             + base_mid.mark_line(
                 color='#0077B6', strokeWidth=1.5, interpolate='monotone'
             ).encode(
                 y=alt.Y(
-                    'tmin_c_true:Q',
-                    title='Temp (°C)',
-                    scale=alt.Scale(domain=[0, 25]),
+                    'tmin_f_true:Q',
+                    title='Temp (°F)',
+                    scale=alt.Scale(domain=temp_f_domain),
                     axis=alt.Axis(grid=False)
                 )
             ).properties(height=150)
             + base_mid.mark_point(
                 color='#0077B6', filled=True, size=30
             ).encode(
-                y=alt.Y('tmin_c_true:Q', scale=alt.Scale(domain=[0, 25]))
+                y=alt.Y('tmin_f_true:Q', scale=alt.Scale(domain=temp_f_domain))
             ).properties(height=150)
             )
         )
 
         # Set rain y-axis domain: [0, max(10, prcp_mm_true.max())]
-        rain_y_max = max(10, predictions_df['prcp_mm_true'].max())
+        # Convert the rain data from mm to inches (1 inch = 25.4 mm)
+        rain_y_max_in = max(0.5, predictions_df['prcp_in_true'].max())
+
         rain = base_bottom.mark_bar(
             color='#3A86FF', opacity=0.8
         ).encode(
             y=alt.Y(
-                'prcp_mm_true:Q',
-                title='Rain (mm)',
-                scale=alt.Scale(domain=[0, rain_y_max]),
+                'prcp_in_true:Q',
+                title='Rain (in)',
+                scale=alt.Scale(domain=[0, rain_y_max_in]),
                 axis=alt.Axis(grid=False)
             )
         ).properties(height=150)
+ 
 
         # If no rain is forecasted at all, overlay gray text
         if predictions_df['prcp_mm_true'].max() == 0:
@@ -266,10 +285,103 @@ with tab1:
             ).properties(height=150)
             rain = rain + no_rain_text
 
+        # Plot the weather code in a new chart below rain
+        # 1. Define custom SVG symbol paths (scaled between -1 and -1 on a bounding box)
+        SUN_PATH = "M 0,-0.6 A 0.6,0.6 0 1,1 0,0.6 A 0.6,0.6 0 1,1 0,-0.6 Z"
+        CLOUD_PATH = "M -0.5,0.2 C -0.7,0.2 -0.8,-0.1 -0.5,-0.3 C -0.5,-0.6 0.1,-0.8 0.4,-0.4 C 0.7,-0.6 1.0,-0.2 0.8,0.2 Z"
+        # Cloud and three descending raindrops (more "rainy" visual)
+        # Revised RAIN_PATH for better visibility of raindrops:
+        RAIN_PATH = (
+            "M -0.5,0.2 C -0.7,0.2 -0.8,-0.1 -0.5,-0.3 "
+            "C -0.5,-0.6 0.1,-0.8 0.4,-0.4 "
+            "C 0.7,-0.6 1.0,-0.2 0.8,0.2 Z "  # Closed cloud
+            # Raindrops - made as circles for better visibility, positioned lower under the cloud
+            "M -0.35,0.55 a0.07,0.13 0 1,0 0.14,0 a0.07,0.13 0 1,0 -0.14,0 "  # Left drop
+            "M 0.0,0.62 a0.07,0.13 0 1,0 0.14,0 a0.07,0.13 0 1,0 -0.14,0 "    # Center drop
+            "M 0.35,0.55 a0.07,0.13 0 1,0 0.14,0 a0.07,0.13 0 1,0 -0.14,0 "   # Right drop
+        )
+
+        # Map weather codes to human-readable labels and SVG paths
+        # Only three example SVGs; all "cloudy", "rain", and "sun" mapped; others get 'cloudy'
+        weather_code_svg_map = {
+            0:  ("Clear", SUN_PATH, "#FFD60A"),
+            1:  ("Mainly Clear", SUN_PATH, "#FFD60A"),
+            2:  ("Partly Cloudy", CLOUD_PATH, "#A0A0A0"),
+            3:  ("Overcast", CLOUD_PATH, "#A0A0A0"),
+            45: ("Fog", CLOUD_PATH, "#A0A0A0"),
+            48: ("Fog", CLOUD_PATH, "#A0A0A0"),
+            51: ("Light Drizzle", RAIN_PATH, "#5D93C2"),
+            53: ("Drizzle", RAIN_PATH, "#5D93C2"),
+            55: ("Dense Drizzle", RAIN_PATH, "#5D93C2"),
+            56: ("Freezing Drizzle", RAIN_PATH, "#5D93C2"),
+            57: ("Dense Freezing Drizzle", RAIN_PATH, "#5D93C2"),
+            61: ("Slight Rain", RAIN_PATH, "#5D93C2"),
+            63: ("Rain", RAIN_PATH, "#1976D2"),
+            65: ("Dense Rain", RAIN_PATH, "#1976D2"),
+            66: ("Freezing Rain", RAIN_PATH, "#1976D2"),
+            67: ("Dense Freezing Rain", RAIN_PATH, "#1976D2"),
+            71: ("Slight Snow Fall", CLOUD_PATH, "#A0A0A0"),
+            73: ("Snow Fall", CLOUD_PATH, "#A0A0A0"),
+            75: ("Dense Snow Fall", CLOUD_PATH, "#A0A0A0"),
+            77: ("Snow Grains", CLOUD_PATH, "#A0A0A0"),
+            80: ("Slight Rain Showers", RAIN_PATH, "#1976D2"),
+            81: ("Rain Showers", RAIN_PATH, "#1976D2"),
+            82: ("Violent Rain Showers", RAIN_PATH, "#1976D2"),
+            85: ("Slight Snow Showers", CLOUD_PATH, "#A0A0A0"),
+            86: ("Snow Showers", CLOUD_PATH, "#A0A0A0"),
+            95: ("Thunderstorm", RAIN_PATH, "#1976D2"),
+            96: ("Thunderstorm + Hail", RAIN_PATH, "#1976D2"),
+            99: ("Thunderstorm + Heavy Hail", RAIN_PATH, "#1976D2"),
+        }
+
+        # Get label, symbol path, and color for a weather code
+        def get_weather_label(code):
+            if code in weather_code_svg_map:
+                return weather_code_svg_map[code][0]
+            else:
+                return str(code)
+
+        def get_weather_symbol(code):
+            if code in weather_code_svg_map:
+                return weather_code_svg_map[code][1]
+            else:
+                return CLOUD_PATH  # fallback
+
+        def get_weather_color(code):
+            if code in weather_code_svg_map:
+                return weather_code_svg_map[code][2]
+            else:
+                return "#A0A0A0"    # fallback gray
+
+        predictions_df['weather_label'] = predictions_df['weather_code'].map(get_weather_label)
+        predictions_df['weather_symbol'] = predictions_df['weather_code'].map(get_weather_symbol)
+        predictions_df['weather_color'] = predictions_df['weather_code'].map(get_weather_color)
+
+        # Create weather icon chart using Altair's mark_point with shapes defined by SVG paths
+        # Create a chart for the weather symbol (icon)
+        weather_symbol_chart = alt.Chart(predictions_df).mark_point(
+            filled=True,
+            size=2000,
+            align='center'
+        ).encode(
+            x=alt.X('date:T',
+                    scale=alt.Scale(domain=date_domain),
+                    axis=alt.Axis(title='', labels=False, ticks=False, grid=False)),
+            shape=alt.Shape('weather_symbol:N', legend=None, 
+                scale=alt.Scale(domain=[SUN_PATH, CLOUD_PATH, RAIN_PATH], 
+                                range=[SUN_PATH, CLOUD_PATH, RAIN_PATH])),
+            color=alt.Color('weather_color:N', legend=None, scale=None),
+            tooltip=['date:T', 'weather_label:N'] #, 'weather_code:N']
+        ).properties(
+            height=75,
+            # title="Weather Conditions"
+        )
+   
+
         # Stack them vertically, share the X-axis, and remove outer borders.
         # View config must be on the vconcat chart, not on subcharts.
         forecast_chart = alt.vconcat(
-            porcini, temp, rain, spacing=10
+            porcini, weather_symbol_chart, temp, rain, spacing=10
         ).resolve_scale(
             x='shared' # This forces them to align perfectly
         ).configure_view(
