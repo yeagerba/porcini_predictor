@@ -129,6 +129,8 @@ def make_predictions(start_date=None, end_date=None):
     # Bring back true values of perfect day features (useful for displaying, e.g. rain along with porcini forecast)
     for feature in perfect_day_features.keys():
         prediction_df[feature + '_true'] = weather_df[feature]
+    # Also include weather code
+    prediction_df['weather_code'] = weather_df['weather_code']
 
     return prediction_df
 
