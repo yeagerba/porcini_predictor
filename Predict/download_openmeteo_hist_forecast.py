@@ -21,6 +21,7 @@ def get_open_meteo_data(url, params):
         # Create DataFrame
         df = pd.DataFrame({
             'date': pd.to_datetime(daily['time']),
+            'weather_code': daily['weather_code'],
             'prcp_mm': daily['precipitation_sum'],
             'tmax_c': daily['temperature_2m_max'],
             'tmin_c': daily['temperature_2m_min']
@@ -83,7 +84,7 @@ def fetch_open_meteo_hist_forecast(lat, lon, start_date, end_date):
             "longitude": lon,
             "start_date": start_date_archive,
             "end_date": end_date_archive,
-            "daily": ["temperature_2m_max", "temperature_2m_min", "precipitation_sum"],
+            "daily": ["weather_code", "temperature_2m_max", "temperature_2m_min", "precipitation_sum"],
             "timezone": "America/Los_Angeles"
         }
 
@@ -98,7 +99,7 @@ def fetch_open_meteo_hist_forecast(lat, lon, start_date, end_date):
             "longitude": lon,
             "start_date": start_date_forecast,
             "end_date": end_date_forecast,
-            "daily": ["temperature_2m_max", "temperature_2m_min", "precipitation_sum"],
+            "daily": ["weather_code", "temperature_2m_max", "temperature_2m_min", "precipitation_sum"],
             "timezone": "America/Los_Angeles"
         }
         print(f"Fetching Open-Meteo forecast ({start_date_forecast} to {end_date_forecast})...")
@@ -126,13 +127,13 @@ def fetch_open_meteo_hist_forecast(lat, lon, start_date, end_date):
 
 # --- TESTING ---
 
-# # Pt Reyes Bear Valley Visitor Center Lat/Lon
-# LAT = 38.0396
-# LON = -122.7984
-# # Dates
-# startdate = '2026-06-12'
-# enddate = '2026-06-27'
+# Pt Reyes Bear Valley Visitor Center Lat/Lon
+LAT = 38.0396
+LON = -122.7984
+# Dates
+startdate = '2026-06-12'
+enddate = '2026-06-27'
 
-# history_df = fetch_open_meteo_hist_forecast(LAT, LON, startdate, enddate)
+history_df = fetch_open_meteo_hist_forecast(LAT, LON, startdate, enddate)
 
-# print(history_df)
+print(history_df)
