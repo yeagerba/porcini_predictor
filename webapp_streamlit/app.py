@@ -205,10 +205,23 @@ with tab1:
         porcini = band_chart + lines_chart + porcini_line + porcini_points
 
 
-        # Temperature axis domain in Fahrenheit (0C = 32F, 25C = 77F)
-        temp_f_domain = [30, 80]
+        # Set temperature domain dynamically from predictions_df over the forecast period
+        # forecast_mask = predictions_df['is_forecast'] == True if 'is_forecast' in predictions_df else [True] * len(predictions_df)
+        min_tmin_f = predictions_df['tmin_f_true'].min()
+        max_tmax_f = predictions_df['tmax_f_true'].max()
+        # Fallback to [30, 80] if the above is not valid
+        if pd.isna(min_tmin_f) or pd.isna(max_tmax_f):
+            temp_f_domain = [30, 80]
+        else:
+            # Pad the domain for visual clarity
+            temp_f_domain = [int(min_tmin_f) - 5, int(max_tmax_f) + 5]
+
         # Set appropriate y-ticks for Fahrenheit
-        temp_grid_y_f = [30, 40, 50, 60, 70, 80]
+        # Ensure gridlines fall on even tens (e.g., 30, 40, 50, ...)
+        # Find first even 10 above or equal to min, last even 10 below or equal to max
+        temp_grid_start = ((temp_f_domain[0] + 9) // 10) * 10
+        temp_grid_end = (temp_f_domain[1] // 10) * 10
+        temp_grid_y_f = list(range(temp_grid_start, temp_grid_end + 1, 10))
         temp_grid_df_f = pd.DataFrame({'y': temp_grid_y_f})
 
         temp_grid_chart_f = alt.Chart(temp_grid_df_f).mark_rule(
@@ -221,40 +234,51 @@ with tab1:
             height=150
         )
 
-        temp = (
-            (temp_grid_chart_f
-            + base_mid.mark_line(
-                color='#FF4B4B', strokeWidth=1.5, interpolate='monotone'
-            ).encode(
-                y=alt.Y(
-                    'tmax_f_true:Q',
-                    title='Temp (°F)',
-                    scale=alt.Scale(domain=temp_f_domain),
-                    axis=alt.Axis(grid=False)
-                )
-            ).properties(height=150)
-            + base_mid.mark_point(
-                color='#FF4B4B', filled=True, size=30
-            ).encode(
-                y=alt.Y('tmax_f_true:Q', scale=alt.Scale(domain=temp_f_domain))
-            ).properties(height=150)
-            + base_mid.mark_line(
-                color='#0077B6', strokeWidth=1.5, interpolate='monotone'
-            ).encode(
-                y=alt.Y(
-                    'tmin_f_true:Q',
-                    title='Temp (°F)',
-                    scale=alt.Scale(domain=temp_f_domain),
-                    axis=alt.Axis(grid=False)
-                )
-            ).properties(height=150)
-            + base_mid.mark_point(
-                color='#0077B6', filled=True, size=30
-            ).encode(
-                y=alt.Y('tmin_f_true:Q', scale=alt.Scale(domain=temp_f_domain))
-            ).properties(height=150)
-            )
-        )
+        temp_bars = base_mid.mark_bar(
+            color="#E0E0E0",  # light grey
+            opacity=0.78,
+            stroke="#555",
+            strokeWidth=0.5,
+            size=16
+        ).encode(
+            y=alt.Y(
+                'tmin_f_true:Q',
+                title='Temp (°F)',
+                scale=alt.Scale(domain=temp_f_domain),
+                axis=alt.Axis(grid=False)
+            ),
+            y2='tmax_f_true:Q'
+        ).properties(height=150)
+   
+
+        # Label top of the bar (tmax_f_true, red)
+        tmax_labels = base_mid.mark_text(
+            align="center",
+            baseline="bottom",
+            dy=-3,  # move label just above bar
+            color="red",
+            fontWeight="bold",
+            fontSize=12
+        ).encode(
+            y=alt.Y('tmax_f_true:Q', scale=alt.Scale(domain=temp_f_domain)),
+            text=alt.Text('tmax_f_true:Q', format=".0f")
+        ).properties(height=150)
+
+        # Label bottom of the bar (tmin_f_true, blue)
+        tmin_labels = base_mid.mark_text(
+            align="center",
+            baseline="top",
+            dy=3,   # move label just below bar
+            color="blue",
+            fontWeight="bold",
+            fontSize=12
+        ).encode(
+            y=alt.Y('tmin_f_true:Q', scale=alt.Scale(domain=temp_f_domain)),
+            text=alt.Text('tmin_f_true:Q', format=".0f")
+        ).properties(height=150)
+
+        temp = temp_grid_chart_f + temp_bars + tmax_labels + tmin_labels
+   
 
         # Set rain y-axis domain: [0, max(10, prcp_mm_true.max())]
         # Convert the rain data from mm to inches (1 inch = 25.4 mm)
@@ -274,7 +298,7 @@ with tab1:
 
         # If no rain is forecasted at all, overlay gray text
         if predictions_df['prcp_mm_true'].max() == 0:
-            no_rain_text = alt.Chart(pd.DataFrame({'x': [predictions_df['date'].iloc[len(predictions_df)//2]], 'y': [rain_y_max/2]})).mark_text(
+            no_rain_text = alt.Chart(pd.DataFrame({'x': [predictions_df['date'].iloc[len(predictions_df)//2]], 'y': [rain_y_max_in/2]})).mark_text(
                 text="No rain in forecast",
                 color='gray',
                 size=18,
@@ -359,6 +383,15 @@ with tab1:
 
         # Create weather icon chart using Altair's mark_point with shapes defined by SVG paths
         # Create a chart for the weather symbol (icon)
+        # Add a "wrapped" label column: insert '\n' for label longer than one word
+        def wrap_label(label):
+            if " " in label:
+                return label.replace(" ", "\n")
+            return label
+        predictions_df['weather_label_wrapped'] = predictions_df['weather_label'].apply(wrap_label)
+
+        # Weather icon points
+        # To move the symbols closer to the top, set y encoding to a constant with a low value
         weather_symbol_chart = alt.Chart(predictions_df).mark_point(
             filled=True,
             size=2000,
@@ -367,15 +400,33 @@ with tab1:
             x=alt.X('date:T',
                     scale=alt.Scale(domain=date_domain),
                     axis=alt.Axis(title='', labels=False, ticks=False, grid=False)),
+            y=alt.value(30),  # Position symbols near the top of the chart (lower values = closer to top)
             shape=alt.Shape('weather_symbol:N', legend=None, 
                 scale=alt.Scale(domain=[SUN_PATH, CLOUD_PATH, RAIN_PATH], 
                                 range=[SUN_PATH, CLOUD_PATH, RAIN_PATH])),
             color=alt.Color('weather_color:N', legend=None, scale=None),
-            tooltip=['date:T', 'weather_label:N'] #, 'weather_code:N']
+            tooltip=['date:T', 'weather_label:N']
         ).properties(
-            height=75,
-            # title="Weather Conditions"
+            height=90,
         )
+
+        # Weather label just below the symbol; wrap text for long labels and rotate 45 degrees
+        weather_label_chart = alt.Chart(predictions_df).mark_text(
+            dx=-5,
+            dy=10,  # vertical offset below symbol
+            fontSize=10,
+            align='center',
+            baseline='top',
+            angle=365-45  # rotate text 45 degrees
+        ).encode(
+            x=alt.X('date:T'),
+            text=alt.Text('weather_label_wrapped:N'),
+            color=alt.value('black')
+        )
+ 
+
+        # Overlay label below symbol
+        weather_symbol_chart = weather_symbol_chart + weather_label_chart
    
 
         # Stack them vertically, share the X-axis, and remove outer borders.
