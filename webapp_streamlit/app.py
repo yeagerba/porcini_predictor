@@ -77,9 +77,9 @@ with tab1:
         
         In the meantime, explore historical data on the next tab to analyze the timing and locations of porcini sightings.
         """
-   
     
-    st.info(infotext, icon="😴")
+        st.info(infotext, icon="😴")
+
     st.text(likelihood_text)
 
 
@@ -103,16 +103,17 @@ with tab1:
         date_domain = [date_min, date_max]
 
         # Shared X spec for charts with labels at top
+        # Format: "Tue 10/06"
         date_x_axis_top = alt.X(
             'date:T',
             scale=alt.Scale(domain=date_domain),
-            axis=alt.Axis(format='%a %d', title=None, grid=False, labelAngle=-45, tickCount=14, orient='top')
+            axis=alt.Axis(format='%a %m/%d', title=None, grid=False, labelAngle=-45, tickCount=14, orient='top')
         )
         # Shared X spec for charts with labels at bottom
         date_x_axis_bottom = alt.X(
             'date:T',
             scale=alt.Scale(domain=date_domain),
-            axis=alt.Axis(format='%a %d', title=None, grid=False, labelAngle=-45, tickCount=14, orient='bottom')
+            axis=alt.Axis(format='%a %m/%d', title=None, grid=False, labelAngle=-45, tickCount=14, orient='bottom')
         )
         # Shared X spec for charts without labels
         date_x_no_labels = alt.X(
