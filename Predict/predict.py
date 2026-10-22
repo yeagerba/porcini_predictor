@@ -16,8 +16,8 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 # CONSTANTS
 # ================================================
 # Model file name
-current_classifier_file = 'xgb_classifier_2026-10-06.json'
-current_regressor_file = 'xgb_regressor_2026-10-06.json'
+current_classifier_file = 'xgb_classifier_2026-10-22.json'
+current_regressor_file = 'xgb_regressor_2026-10-22.json'
 # Porcini index max bound
 porcini_index_max = 3
 # Prediction features

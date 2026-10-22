@@ -51,8 +51,8 @@ with tab1:
 
     # Create info text explaining the forecast
     likelihood_dict = {
-        20: 'LOW',
-        50: 'ELEVATED',
+        10: 'LOW',
+        40: 'ELEVATED',
         70: 'HIGH',
         100: 'VERY HIGH'
     }
@@ -63,6 +63,7 @@ with tab1:
             current_likelihood = value
             break
     likelihood_text += ".\n\n"
+    print(predictions_df['porcini_index'].max())
     likelihood_text += "Likelihood of porcini fruiting within the next two weeks is "
     for key, value in likelihood_dict.items():
         if predictions_df['porcini_index'].max() <= key:
