@@ -77,6 +77,16 @@ def fetch_open_meteo_hist_forecast(lat, lon, start_date, end_date):
         start_date_forecast = start_date
         end_date_forecast = end_date
 
+    # Open-Meteo forecast is ~16 days including today. Asking past that returns 400
+    # and leaves this function with archive-only rows (through yesterday).
+    forecast_max = date.today() + timedelta(days=15)
+    if get_forecast and end_date_forecast > forecast_max:
+        print(
+            f"Warning: Open-Meteo forecast only goes through {forecast_max}; "
+            f"capping requested end_date {end_date_forecast}."
+        )
+        end_date_forecast = forecast_max
+
     if get_archive:
         url = url_archive
         params = {

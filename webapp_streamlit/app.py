@@ -169,12 +169,20 @@ with tab1:
             height=150
         )
 
+        # Add band name mapping to predictions_df for tooltip
+        def porcini_band_label(index):
+            for key, value in likelihood_dict.items():
+                if index < key:
+                    return value
+            return ""
+        predictions_df["porcini_likelihood_band"] = predictions_df["porcini_index"].apply(porcini_band_label)
+
         porcini_line = base_top.mark_line(
             color='#5C3A21', strokeWidth=3, interpolate='monotone'
         ).encode(
             y=alt.Y(
                 'porcini_index:Q',
-                title='Porcini Abundance',
+                title='Porcini Likelihood',
                 scale=alt.Scale(domain=[0, 100]),
                 axis=alt.Axis(
                     grid=False,
@@ -192,11 +200,17 @@ with tab1:
                             100: '{ytick_labels[100]}'
                         }}[datum.value] || ''
                     """,
-                    labelBaseline="bottom",   # Move the labels up above the ticks
-                    labelPadding=0            # Reduce padding (default is 4), move closer to axis (and up)
+                    labelBaseline="bottom",
+                    labelPadding=0
                 )
-            )
-        ).properties(height=150)
+            ),
+            tooltip=[
+                alt.Tooltip("date:T", title="Date"),
+                alt.Tooltip("porcini_likelihood_band:N", title="Porcini likelihood"),
+            ]
+        ).properties(height=150).interactive()  # <-- Adds hover interactivity
+
+ 
 
         porcini_points = base_top.mark_point(
             color='#5C3A21', filled=True, size=60
